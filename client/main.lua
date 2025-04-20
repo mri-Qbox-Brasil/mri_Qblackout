@@ -1,5 +1,6 @@
 local QBCore = exports['qb-core']:GetCoreObject()
 local player = PlayerPedId()
+local blackoutActive = false  -- Variável local para armazenar o estado do blackout
 
 
 --// Models
@@ -19,61 +20,42 @@ RegisterNetEvent("ss-blackout:blackoutactivenotification", function()
 QBCore.Functions.Notify(Config.AlreadyActiveMessage, "error", 3000)
 end)
 
+
+--// Models
+local box = GetHashKey("reh_prop_reh_b_computer_04a")
+RequestModel(box)
+while not HasModelLoaded(box) do
+    Citizen.Wait(1)
+    RequestModel(box)
+end
+
+--// Eventos
+RegisterNetEvent("ss-blackout:updateState", function(state)
+    blackoutActive = state
+    UpdateBlackoutTarget() -- Atualiza o target quando o estado muda
+end)
+
 RegisterNetEvent("ss-blackout:enterbox", function()
     local ped = PlayerPedId()
-    SetEntityHeading(
-        ped,
-        239.88
-    )
+    SetEntityHeading(ped, 239.88)
     local pedCoords = GetEntityCoords(ped)
     local pedRotation = GetEntityRotation(ped)
-    
 
     NetworkedScene(vector3(713.9, 160.55, 80.75), pedRotation, {
-        {
-            ped = ped,
-            anim = {
-                dict = "anim@scripted@ulp_missions@fuse@male@",
-                anim = "enter"
-            }
-        }
+        { ped = ped, anim = { dict = "anim@scripted@ulp_missions@fuse@male@", anim = "enter" } }
     }, {
-        {
-            model = `reh_prop_reh_b_computer_04a`,
-            anim = {
-                dict = "anim@scripted@ulp_missions@fuse@male@",
-                anim = "enter_fusebox"
-            }
-        }
+        { model = `reh_prop_reh_b_computer_04a`, anim = { dict = "anim@scripted@ulp_missions@fuse@male@", anim = "enter_fusebox" } }
     }, 7500)
 
-    local ped = PlayerPedId()
-    SetEntityHeading(
-        ped,
-        239.88
-    )
-    local pedCoords = GetEntityCoords(ped)
-    local pedRotation = GetEntityRotation(ped)
-    
     NetworkedScene(vector3(713.9, 160.55, 80.75), pedRotation, {
-        {
-            ped = ped,
-            anim = {
-                dict = "anim@scripted@ulp_missions@fuse@male@",
-                anim = "success"
-            }
-        }
+        { ped = ped, anim = { dict = "anim@scripted@ulp_missions@fuse@male@", anim = "success" } }
     }, {
-        {
-            model = `reh_prop_reh_b_computer_04a`,
-            anim = {
-                dict = "anim@scripted@ulp_missions@fuse@male@",
-                anim = "success_fusebox"
-            }
-        }
+        { model = `reh_prop_reh_b_computer_04a`, anim = { dict = "anim@scripted@ulp_missions@fuse@male@", anim = "success_fusebox" } }
     }, 9560)
-
 end)
+
+
+
 
 
 
@@ -141,24 +123,53 @@ function NetworkedScene(coords, rotation, peds, objects, duration)
     end
 end
 
+--// Função para atualizar o alvo de interação
+function UpdateBlackoutTarget()
+    exports['qb-target']:RemoveZone("BlackoutBoxZone") -- Remove a zona para recriar corretamente
 
---// Box Targeting
-exports['qb-target']:AddBoxZone("BlackoutBoxZone",vector3(713.01, 161.07, 81.10), 1.2, 1, { -- The name has to be unique, the coords a vector3 as shown, the 1.5 is the length of the boxzone and the 1.6 is the width of the boxzone, the length and width have to be float values
-  name = "BlackoutBoxZone", -- This is the name of the zone recognized by PolyZone, this has to be unique so it doesn't mess up with other zones
-  heading = 331, -- The heading of the boxzone, this has to be a float value
-  debugPoly = false, -- This is for enabling/disabling the drawing of the box, it accepts only a boolean value (true or false), when true it will draw the polyzone in green
-  minZ = 80.5, -- This is the bottom of the boxzone, this can be different from the Z value in the coords, this has to be a float value
-  maxZ = 81.9, -- This is the top of the boxzone, this can be different from the Z value in the coords, this has to be a float value
-}, {
-  options = { -- This is your options table, in this table all the options will be specified for the target to accept
-    { -- This is the first table with options, you can make as many options inside the options table as you want
-      num = 1, -- This is the position number of your option in the list of options in the qb-target context menu (OPTIONAL)
-      type = "server", -- This specifies the type of event the target has to trigger on click, this can be "client", "server", "command" or "qbcommand", this is OPTIONAL and will only work if the event is also specified
-      event = "ss-blackout:blackout", -- This is the event it will trigger on click, this can be a client event, server event, command or qbcore registered command, NOTICE: Normal command can't have arguments passed through, QBCore registered ones can have arguments passed through
-      icon = 'fa-solid fa-power-off', -- This is the icon that will display next to this trigger option
-      label = 'Desligue a energia da Cidade', -- This is the label of this option which you would be able to click on to trigger everything, this has to be a string
-    }
-  },
-  distance = 3.0, -- This is the distance for you to be at for the target to turn blue, this is in GTA units and has to be a float value
-})
+    if blackoutActive then
+        -- Target para ligar a energia
+        exports['qb-target']:AddBoxZone("BlackoutBoxZone", vector3(713.01, 161.07, 81.10), 1.2, 1, {
+            name = "BlackoutBoxZone",
+            heading = 331,
+            debugPoly = false,
+            minZ = 80.5,
+            maxZ = 81.9,
+        }, {
+            options = {
+                {
+                    type = "server",
+                    event = "ss-blackout:restorepower",
+                    icon = 'fa-solid fa-power-off',
+                    label = 'Ligar a energia da Cidade',
+                }
+            },
+            distance = 3.0
+        })
+    else
+        -- Target para desligar a energia
+        exports['qb-target']:AddBoxZone("BlackoutBoxZone", vector3(713.01, 161.07, 81.10), 1.2, 1, {
+            name = "BlackoutBoxZone",
+            heading = 331,
+            debugPoly = false,
+            minZ = 80.5,
+            maxZ = 81.9,
+        }, {
+            options = {
+                {
+                    type = "server",
+                    event = "ss-blackout:blackout",
+                    icon = 'fa-solid fa-power-off',
+                    label = 'Desligar a energia da Cidade',
+                }
+            },
+            distance = 3.0
+        })
+    end
+end
 
+-- Iniciar com a configuração correta
+Citizen.CreateThread(function()
+    Citizen.Wait(1000)
+    UpdateBlackoutTarget()
+end)
